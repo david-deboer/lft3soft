@@ -1,9 +1,52 @@
 from astroquery.jplhorizons import Horizons
+from pygdsm import GlobalSkyModel
 import matplotlib.pyplot as plt
 import numpy as np
 from astropy import units as u
 from astropy.coordinates import SkyCoord
+import healpy as hp
 
+
+# see Danny Price https://github.com/telegraphic/pygdsm/tree/master
+NSIDE = 512
+
+class Galaxy:
+    def __init__(self, freqs, fwhm, idisplay):
+        self.gsm = GlobalSkyModel(include_cmb=True)  # This uses GSM08 (?)
+        self.freqs = freqs
+        self.fwhm = fwhm
+        self.idisplay = idisplay
+
+    def gen_map_cube(self):
+        map_raw = self.gsm.generate(self.freqs)
+        if self.fwhm is None:
+            self.map_cube = map_raw
+        else:
+            self.map_cube = []
+            for i in range(len(self.freqs)):
+                self.map_cube.append(hp.sphtfunc.smoothing(map_raw[i], self.fwhm[i]))
+        self.map_cube = np.array(self.map_cube)
+
+    def gen_pointings(self):
+        self.coord = Pointing()
+        self.locations = hp.pixelfunc.ang2pix(NSIDE, self.coord.midview.galactic.l.to_value(), self.coord.midview.galactic.b.to_value(), lonlat=True)
+
+    def gen_locs(self, step=112000):
+        minval = min(self.map_cube[0])
+        imin = np.where(self.map_cube[0] < minval + 0.05)[0][0]
+        maxval = max(self.map_cube[0])
+        imax = np.where(self.map_cube[0] > maxval - 0.05)[0][0]
+        self.locations = [imin, imax] + list(range(0, self.map_cube.shape[1], step))
+
+    def view(self, view_fullres=True, logged=True):
+        plt.figure('Pointings')
+        if view_fullres:
+            self.gsm.view(self.idisplay, logged=True)
+        else:
+            if logged:
+                hp.visufunc.mollview(np.log10(self.map_cube[self.idisplay]))
+            else:
+                hp.visufunc.mollview(self.map_cube[self.idisplay])
 
 class Pointing:
     def __init__(self, observer='Apollo-11 LRRR @ 301', target='399', flip=True, view=30.0,
