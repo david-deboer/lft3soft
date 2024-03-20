@@ -3,10 +3,11 @@ import matplotlib.pyplot as plt
 from copy import copy
 import lunar_sys
 import lunar_obs
+import healpy as hp
 
 
 NSIDE = 512
-
+plt.style.use('ggplot')
 
 color_palette = [
     (0.12156862745098039, 0.4666666666666667, 0.7058823529411765, 1.0),
@@ -19,11 +20,11 @@ color_palette = [
 
 
 class Observe:
-    def __init__(self, N=50, deck_diameter=3.0, element_low=400.0, array_low=None, start=300.0, stop=900, step=10):
+    def __init__(self, N=50, deck_diameter=3.0, element_low=400.0, array_low=None, start=250.0, stop=750, step=10):
         self.LB = [1, 50]
-        self.FM = [80, 110]
+        self.FM = [70, 120]
         self.MA = [start, stop]
-        self.HB = [start*2, stop*2]
+        self.HB = [start * 2, start * 6]
         self.system = lunar_sys.System(N=N, deck_diameter=deck_diameter, element_low=element_low, array_low=array_low, start=start, stop=stop, step=step)
         self.system.gen_Trcvr()
         self.system.gen_Aeff('vivaldi')

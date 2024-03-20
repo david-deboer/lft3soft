@@ -5,7 +5,7 @@ directivity = {'vivaldi': 3.1, 'dipole': 1.6}
 
 
 class System:
-    def __init__(self, N=50, deck_diameter=3.0, element_low=400.0, array_low=400.0, start=300.0, stop=900.0, step=20.0):
+    def __init__(self, N=50, deck_diameter=3.0, element_low=400.0, array_low=400.0, start=250.0, stop=750.0, step=20.0):
         """
         Parameters
         ----------
