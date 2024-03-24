@@ -11,6 +11,17 @@ LY = 9.461e+15  # m/ly
 def to_dB(v):
     return 10.0 * np.log10(v)
 
+def butter_lowpass_filter(data, fs, BW, order=8):
+    from scipy.signal import butter, filtfilt, freqz
+    nyq = 0.5 * fs # Nyquist Frequency
+    normal_cutoff = BW / nyq
+    # Get the filter coefficients 
+    b, a = butter(order, normal_cutoff, btype='low', analog=False)
+    # w, ff = freqz(b, a, fs=fs)
+    # plt.semilogy(w, np.abs(ff), label='Filter')
+    y = filtfilt(b, a, data)
+    return y
+
 class Signal:
     def __repr__(self):
         return f"T={self.T}\nBW={self.BW}\nfs={self.fs}\nN={self.N}"
@@ -45,6 +56,18 @@ class Signal:
         
     def power_from_f(self):
         self.If =  np.trapz(self.S, self.f) * self.total_time / self.N
+
+class FM(Signal):
+    def __init__(self, fs, BW, N, station=1e6, modu=2e3):
+        self.fs = fs
+        self.BW = BW
+        self.N = N
+        self.station = station
+        self.modu = modu
+        
+    def band_limited_uniform(self):
+        self.signal = butter_lowpass_filter(rng.uniform(-1.0, 1.0, self.N), self.fs, self.modu)
+
 
 class CombinedSignal(Signal):
     def __init__(self, signal1, signal2):
@@ -97,18 +120,7 @@ class BandLimitedWhiteNoise(Signal):
     def band_limited_white_noise(self):
         var = kB * self.T
         sigma = np.sqrt(var)
-        self.signal = self.butter_lowpass_filter(rng.normal(self.mu, sigma, self.N), order=4)
-
-    def butter_lowpass_filter(self, data, order=8):
-        from scipy.signal import butter, filtfilt, freqz
-        nyq = 0.5 * self.fs # Nyquist Frequency
-        normal_cutoff = self.BW / nyq
-        # Get the filter coefficients 
-        b, a = butter(order, normal_cutoff, btype='low', analog=False)
-        w, ff = freqz(b, a, fs=self.fs)
-        # plt.semilogy(w, np.abs(ff), label='Filter')
-        y = filtfilt(b, a, data)
-        return y
+        self.signal = butter_lowpass_filter(rng.normal(self.mu, sigma, self.N), self.fs, self.BW, order=4)
 
 
 class DriftingCW(Signal):
