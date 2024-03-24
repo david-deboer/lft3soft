@@ -35,10 +35,15 @@ class Signal:
         """
         print("Delay the signal.")
 
-    def integrate_v(self):
+    def integrate(self, integration_time):
+        self.integration_time = integration_time
+        self.bTau = np.sqrt(self.integration_time * self.freq_resolution)
+        print("NOW NEED TO APPLY bTau AS APPROPRIATE")
+
+    def power_from_v(self):
         self.Iv2 =  np.trapz(self.signal**2, self.t) / self.total_time
         
-    def integrate_f(self):
+    def power_from_f(self):
         self.If =  np.trapz(self.S, self.f) * self.total_time / self.N
 
 class CombinedSignal(Signal):
