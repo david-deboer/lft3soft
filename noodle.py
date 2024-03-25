@@ -77,7 +77,7 @@ class Observing:
         print(f"Freq resolution = {self.sys.resolution_BW} Hz")
         print(f"Band = {self.sys.BW} Hz")
         print("Integrating voltage^2 ...")
-        print(f"  self.noise[0] = {sigs.to_dB(self.chan_sig_v)}")
+        print(f"  self.noise[0] = {sigs.to_dB(self.per_rcvr.chan_noise_v[0])}")
         print(f"  sig = {sigs.to_dB(self.chan_sig_v)}")
         #print(f"  rx[0] = {self.rx[0].dB('Iv2')}")
         print("Integrating power spectrum ...")
@@ -100,7 +100,7 @@ class Observing:
     def freq_plot(self):
         figf, axf = plt.subplots()
         axf.plot(self.rx[0].f, self.rx[0].dB('S'), 'b')
-        axf.plot([self.rx[0].f[0], self.rx[0].f[-1]], [self.noise[0].dB('channel_power') + sigs.to_dB(self.SNR), self.noise[0].dB('channel_power') + sigs.to_dB(self.sys.SNR)])
+        axf.plot([self.rx[0].f[0], self.rx[0].f[-1]], [self.noise[0].dB('channel_power') + sigs.to_dB(self.sys.SNR), self.noise[0].dB('channel_power') + sigs.to_dB(self.sys.SNR)])
         axf.plot([self.rx[0].f[0], self.rx[0].f[-1]], [self.sig.dB('channel_power'), self.sig.dB('channel_power')])
         axf.set_xlim(left=0, right=self.sys.BW)
         axf.set_ylim(bottom=-220)
@@ -116,7 +116,11 @@ obs.auto_observe()
 obs.info()
 obs.auto_info()
 obs.time_plot()
-# obs.freq_plot()
+obs.freq_plot()
+
+
+
+
 #a = correlate(x, x, mode='same')
 #print(type(a))
 #print(a.shape)
