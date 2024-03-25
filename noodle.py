@@ -17,7 +17,7 @@ INPUTS = {
     'freq': 1.9e5,  # Of signal
     'phase':  0.0,
     'drift_rate': 0.0,
-    'distance': 10000.0,  # in LY
+    'distance': 1000.0,  # in LY
     'EIRP': 1.0E12,  # in W
     'Ae': 50 * 50.0,
     'SNR': 10.0,
@@ -80,12 +80,12 @@ class System:
         print(f"Freq resolution = {self.freq_resolution} Hz")
         print(f"Band = {self.sampled_BW} Hz")
         print("Integrating voltage^2 ...")
-        print(f"  self.noise[0] = {sigs.to_dB(self.chan_sig_v)}")
+        print(f"  self.noise[0] = {sigs.to_dB(self.per_rcvr.chan_noise_v[0])}")
         print(f"  sig = {sigs.to_dB(self.chan_sig_v)}")
         #print(f"  rx[0] = {self.rx[0].dB('Iv2')}")
         print("Integrating power spectrum ...")
-        print(f"  self.noise[0] = {self.per_rcvr.chan_noise_f[0]}")
-        print(f"  sig = {self.chan_sig_f}")
+        print(f"  self.noise[0] = {sigs.to_dB(self.per_rcvr.chan_noise_f[0])}")
+        print(f"  sig = {sigs.to_dB(self.chan_sig_f)}")
         #print(f"  rx[0] = {self.rx[0].dB('If')}")
         print("DIFF")
         print(self.noise[0].dB('If') - self.noise[0].dB('Iv2'))
