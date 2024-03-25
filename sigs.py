@@ -107,8 +107,10 @@ class FM(Signal):
         self.sys = sys
         
     def band_limited_uniform(self):
-        self.signal = butter_lowpass_filter(rng.uniform(-1.0, 1.0, self.sys.N), self.sys.fs, self.sys.fm_mod)
-
+        mod_f = butter_lowpass_filter(rng.uniform(-1.0, 1.0, self.sys.N), self.sys.fs, self.sys.fm_mod, order=4)
+        mod_f /= max(mod_f[100:-100])
+        omega = 2.0 * np.pi * (self.sys.fm_freq + mod_f) 
+        self.signal = np.cos(omega * self.sys.t)
 
 class CombinedSignal(Signal):
     def __init__(self, sys, signal1, signal2):
