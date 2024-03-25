@@ -16,8 +16,6 @@ def butter_lowpass_filter(data, fs, BW, order=8):
     from scipy.signal import butter, filtfilt, freqz
     nyq = 0.5 * fs # Nyquist Frequency
     normal_cutoff = BW / nyq
-    print("SIGS:BUTTER:19 - clean up")
-    normal_cutoff = 0.5
     # Get the filter coefficients 
     b, a = butter(order, normal_cutoff, btype='low', analog=False)
     # w, ff = freqz(b, a, fs=fs)
@@ -30,17 +28,17 @@ class System:
     input_constrained = ['fs', 'BW', 'time_obs_0', 'N']
     input_to_modify = ['distance']
     def __init__(self, **kwargs):
-        print("YOU ARE IN A BRANCH TO GLOM SIGNAL INTO ONE")
+        M = 2.0 * (1.0 + kwargs['oversample_pc']/100.0)
         if 'fs' in kwargs:
             self.fs = kwargs['fs']
             if 'BW' in kwargs:
-                raise ValueError("Can't specify fs and BW (assuming Nyquist)")
-            self.BW = self.fs / 2.0
+                raise ValueError("Can't specify fs and BW")
+            self.BW = self.fs / M
         elif 'BW' in kwargs:
             self.BW = kwargs['BW']
             if 'fs' in kwargs:
-                raise ValueError("Can't specify BW and Fs (assuming Nyquist)")
-            self.fs = 2.0 * self.BW
+                raise ValueError("Can't specify BW and fs")
+            self.fs = M * self.BW
         else:
             raise ValueError("Need fs or BW")
         if 'time_obs_0' in kwargs:

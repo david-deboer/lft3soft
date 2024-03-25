@@ -10,6 +10,7 @@ import argparse
 INPUTS = {
     'N_rcvr': 1,
     'BW': 3.0e6,  # full bandwidth
+    'oversample_pc': 1.0,  #percent to oversample from Nyquist
     'time_obs_0': 0.4,  # s
     'time_integration': 18.0,  # s
     'Tsys':  30.0,  # K
@@ -19,11 +20,12 @@ INPUTS = {
     'signal_start_freq': 1.9e6,  # Of signal
     'signal_phase':  0.0,
     'signal_drift_rate': 0.0,
-    'distance': 10000.0,  # in LY
+    'distance': 1000.0,  # in LY
     'EIRP': 1.0E12,  # in W
     'Ae': 50 * 50.0,
     'SNR': 10.0
     }
+
 
 class Observing:
     def __init__(self, sys):
@@ -64,12 +66,8 @@ class Observing:
             self.rx[i].power_from_f()
             self.per_rcvr.snr_detected[i] = self.sig.channel_power/ self.noise[i].channel_power
             self.per_rcvr.chan_noise_v[i] = self.per_rcvr.chan_noise_v[i] #update for integration
-
-    def info(self):
-        print(self.noise[0])
-        print(f"Integration time = {self.sys.time_integration}")
     
-    def auto_info(self):
+    def info(self):
         print(f"Noise = {self.noise[0].dB('channel_power')}  dB[W]")
         print(f"Signal = {self.sig.dB('channel_power')} dB[W]")
         print(f"SNR(threshhold) = {self.sys.SNR}")
@@ -114,7 +112,6 @@ obs.set_noise()
 obs.set_cw()
 obs.auto_observe()
 obs.info()
-obs.auto_info()
 obs.time_plot()
 obs.freq_plot()
 
