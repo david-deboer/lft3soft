@@ -56,7 +56,7 @@ class Observing:
         self.chan_sig_f = self.sig.If * self.sys.N
 
     def auto_observe(self):
-        self.noise[0].integrate(self.sys.time_integration)
+        self.noise[0].integrate()
         for i in range(self.sys.N_rcvr):
             self.rx[i] = sigs.CombinedSignal(self.sys, self.sig, self.noise[0])
             self.rx[i].power_spectrum()
@@ -67,7 +67,7 @@ class Observing:
 
     def info(self):
         print(self.noise[0])
-        print(f"Integration time = {self.time_integration}")
+        print(f"Integration time = {self.sys.time_integration}")
     
     def auto_info(self):
         print(f"Noise = {self.noise[0].dB('channel_power')}  dB[W]")
@@ -81,15 +81,15 @@ class Observing:
         print(f"  sig = {sigs.to_dB(self.chan_sig_v)}")
         #print(f"  rx[0] = {self.rx[0].dB('Iv2')}")
         print("Integrating power spectrum ...")
-        print(f"  self.noise[0] = {self.per_rcvr.chan_noise_f[0]}")
-        print(f"  sig = {self.chan_sig_f}")
+        print(f"  self.noise[0] = {sigs.to_dB(self.per_rcvr.chan_noise_f[0])}")
+        print(f"  sig = {sigs.to_dB(self.chan_sig_f)}")
         #print(f"  rx[0] = {self.rx[0].dB('If')}")
         print("DIFF")
         print(self.noise[0].dB('If') - self.noise[0].dB('Iv2'))
         print(self.sig.dB('If') - self.sig.dB('Iv2'))
 
     def time_plot(self, plot_span=500):
-        t_plot = self.ant[0].t[:plot_span]
+        t_plot = self.ant[0].sys.t[:plot_span]
         figt, axt = plt.subplots()
         axt.plot(t_plot, self.noise[0].signal[:plot_span], 'b')
         axt.plot(t_plot, self.sig.signal[:plot_span], 'g')
@@ -113,9 +113,9 @@ obs = Observing(sys)
 obs.set_noise()
 obs.set_cw()
 obs.auto_observe()
-# obs.info()
-# obs.auto_info()
-# obs.time_plot()
+obs.info()
+obs.auto_info()
+obs.time_plot()
 # obs.freq_plot()
 #a = correlate(x, x, mode='same')
 #print(type(a))

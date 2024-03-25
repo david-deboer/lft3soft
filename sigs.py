@@ -94,9 +94,8 @@ class Signal:
         """
         print("Delay the signal.")
 
-    def integrate(self, time_integration):
-        self.time_integration = time_integration
-        self.bTau = np.sqrt(self.time_integration * self.resolution_BW)
+    def integrate(self):
+        self.bTau = np.sqrt(self.sys.time_integration * self.sys.resolution_BW)
         print("NOW NEED TO APPLY bTau AS APPROPRIATE")
 
     def power_from_v(self):
@@ -117,8 +116,7 @@ class CombinedSignal(Signal):
     def __init__(self, sys, signal1, signal2):
         self.sys = sys
         self.signal = signal1.signal + signal2.signal
-        print("SIGS:COMBINED - fix line below")
-        #self.channel_power = signal1.channel_power + signal2.channel_power
+        self.channel_power = signal1.channel_power + signal2.channel_power
         self.T = 0.0
         try:
             self.T += signal1.T
@@ -142,6 +140,8 @@ class BandLimitedWhiteNoise(Signal):
         for p_self, p_sys in parmap.items():
             setattr(self, p_self, getattr(self.sys, p_sys))
         self.mu = 0.0
+        self.channel_power = kB * self.T * self.sys.resolution_BW
+        self.total_power = kB * self.T * self.sys.BW
 
     # AWGN https://stackoverflow.com/questions/14058340/adding-noise-to-a-signal-in-python
     def band_limited_white_noise(self):
