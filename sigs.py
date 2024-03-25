@@ -103,6 +103,7 @@ class Signal:
         self.If =  np.trapz(self.S, self.f) * self.sys.time_obs_0 / self.sys.N
 
 class FM(Signal):
+    name = "FM"
     def __init__(self, sys):
         self.sys = sys
         
@@ -110,24 +111,32 @@ class FM(Signal):
         mod_f = butter_lowpass_filter(rng.uniform(-1.0, 1.0, self.sys.N), self.sys.fs, self.sys.fm_mod, order=4)
         mod_f /= max(mod_f[100:-100])
         omega = 2.0 * np.pi * (self.sys.fm_freq + mod_f) 
-        self.signal = np.cos(omega * self.sys.t)
+        self.signal = self.sys.fm_power * np.cos(omega * self.sys.t)
+        self.channel_power = 0.0  # Ignore this for now
 
 class CombinedSignal(Signal):
-    def __init__(self, sys, signal1, signal2):
+    name = "CombinedSignal"
+    def __init__(self, sys, *args):
         self.sys = sys
-        self.signal = signal1.signal + signal2.signal
-        self.channel_power = signal1.channel_power + signal2.channel_power
+        self.signal = np.zeros(self.sys.N)
+        self.channel_power = 0.0
         self.T = 0.0
-        try:
-            self.T += signal1.T
-        except AttributeError:
-            pass
-        try:
-            self.T += signal2.T
-        except AttributeError:
-            pass
-
+        print("Combining:", end=' ')
+        for this_signal in args:
+            print(this_signal.name, end=' ')
+            self.signal += this_signal.signal
+            self.channel_power += this_signal.channel_power
+            try:
+                self.T += this_signal.T
+            except AttributeError:
+                pass
+            try:
+                self.T += this_signal.T
+            except AttributeError:
+                pass
+        print()
 class BandLimitedWhiteNoise(Signal):
+    name = "BandLimitedWhiteNoise"
     def __init__(self, sys, parmap):
         """
         Parameters
@@ -151,6 +160,7 @@ class BandLimitedWhiteNoise(Signal):
 
 
 class DriftingCW(Signal):
+    name = "DriftingCW"
     def __init__(self, sys):
         """
         Parameters

@@ -15,13 +15,13 @@ INPUTS = {
     'time_integration': 18.0,  # s
     'Tsys':  30.0,  # K
     'Tsky':  0.0,
-    'fm_freq': 1.1e6,
-    'fm_mod': 5.e5,
-    'fm_power': (10.0 * 1000.0) / (4.0 * np.pi * 1000.0**2),
+    'fm_freq': 0.7e6,
+    'fm_mod': 100.0e3,
+    'fm_power': (1000.0) / (4.0 * np.pi * 50000.0**2),  # 1kW at 50km
     'signal_start_freq': 1.9e6,  # Of signal
     'signal_phase':  0.0,
     'signal_drift_rate': 0.0,
-    'distance': 1000.0,  # in LY
+    'distance': 100.0,  # in LY
     'EIRP': 1.0E12,  # in W
     'Ae': 50 * 50.0,
     'SNR': 10.0
@@ -36,7 +36,7 @@ class Observing:
         self.per_rcvr = argparse.Namespace(chan_noise_v={}, chan_noise_f={}, snr_detected={})
         self.sys = sys
 
-    def set_noise(self):
+    def make_noise(self):
         print("Making sky and system noise.")
         self.sky = sigs.BandLimitedWhiteNoise(self.sys, {'T': 'Tsky'})
         self.sky.band_limited_white_noise()
@@ -50,7 +50,7 @@ class Observing:
             self.per_rcvr.chan_noise_v[i] = self.noise[i].Iv2 * self.noise[i].sys.resolution_BW
             self.per_rcvr.chan_noise_f[i] = self.noise[i].If * self.noise[i].sys.resolution_BW
 
-    def set_cw(self):
+    def make_cw(self):
         print("Making technosignature.")
         self.sig = sigs.DriftingCW(self.sys)
         self.sig.cw()
@@ -60,7 +60,7 @@ class Observing:
         self.chan_sig_v = self.sig.Iv2 * self.sys.N
         self.chan_sig_f = self.sig.If * self.sys.N
 
-    def set_rfi(self):
+    def make_rfi(self):
         print("Making RFI (fm)")
         self.fm = sigs.FM(self.sys)
         self.fm.band_limited_uniform()
@@ -69,11 +69,11 @@ class Observing:
         print("Making observation.")
         self.noise[0].integrate()
         for i in range(self.sys.N_rcvr):
-            self.rx[i] = sigs.CombinedSignal(self.sys, self.sig, self.fm, self.noise[0])
+            self.rx[i] = sigs.CombinedSignal(self.sys, self.sig, self.fm, self.noise[i])
             self.rx[i].power_spectrum()
             self.rx[i].power_from_v()
             self.rx[i].power_from_f()
-            self.per_rcvr.snr_detected[i] = self.sig.channel_power/ self.noise[i].channel_power
+            self.per_rcvr.snr_detected[i] = self.sig.channel_power / self.noise[i].channel_power
             self.per_rcvr.chan_noise_v[i] = self.per_rcvr.chan_noise_v[i] #update for integration
     
     def info(self):
@@ -116,18 +116,14 @@ class Observing:
         print("YEP")
 
 sys = sigs.System(**INPUTS)
-fm = sigs.FM(sys)
-fm.band_limited_uniform()
-fm.power_spectrum()
-plt.plot(fm.f, fm.dB('S'))
-# plt.plot(fm.signal[:1000])
-# obs = Observing(sys)
-# obs.set_noise()
-# obs.set_cw()
-# obs.auto_observe()
-# obs.info()
-# obs.time_plot()
-# obs.freq_plot()
+obs = Observing(sys)
+obs.make_noise()
+obs.make_cw()
+obs.make_rfi()
+obs.auto_observe()
+obs.info()
+obs.time_plot()
+obs.freq_plot()
 
 
 
