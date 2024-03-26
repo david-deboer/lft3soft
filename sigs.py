@@ -10,7 +10,7 @@ LY = 9.461e+15  # m/ly
 
 
 def to_dB(v):
-    return 10.0 * np.log10(v)
+    return 10.0 * np.log10(np.abs(v))
 
 def butter_lowpass_filter(data, fs, BW, order=8):
     from scipy.signal import butter, filtfilt, freqz
@@ -23,9 +23,15 @@ def butter_lowpass_filter(data, fs, BW, order=8):
     y = filtfilt(b, a, data)
     return y
 
+def cross_power(obs1, obs2, fs, N):
+    f, sv1 = fft(fs, obs1)
+    f, sv2 = fft(fs, obs2)
+    S = (sv1 * np.conjugate(sv2)) / N
+    pn = len(f) // 2
+    return f, S
 
 class System:
-    input_constrained = ['fs', 'BW', 'time_obs_0', 'N']
+    input_constrained = ['fs', 'BW', 'time_per_single', 'N']
     input_to_modify = ['distance']
     def __init__(self, **kwargs):
         M = 2.0 * (1.0 + kwargs['oversample_pc']/100.0)
@@ -41,20 +47,20 @@ class System:
             self.fs = M * self.BW
         else:
             raise ValueError("Need fs or BW")
-        if 'time_obs_0' in kwargs:
-            self.time_obs_0 = kwargs['time_obs_0']
+        if 'time_per_single' in kwargs:
+            self.time_per_single = kwargs['time_per_single']
             if 'N' in kwargs:
-                raise ValueError("Can't specify N and time_obs_0")
-            self.N = int(self.time_obs_0 * self.fs)
+                raise ValueError("Can't specify N and time_per_single")
+            self.N = int(self.time_per_single * self.fs)
         elif 'N' in kwargs:
             self.N = kwargs['N']
-            if 'time_obs_0' in kwargs:
-                raise ValueError("Can't specify time_obs_0 and N")
-            self.time_obs_0 = self.N / self.fs
+            if 'time_per_single' in kwargs:
+                raise ValueError("Can't specify time_per_single and N")
+            self.time_per_single = self.N / self.fs
         else:
-            raise ValueError("Need time_obs_0 or N")
+            raise ValueError("Need time_per_single or N")
         self.resolution_BW = self.fs / self.N
-        self.t = np.linspace(0.0, self.time_obs_0, self.N)
+        self.t = np.linspace(0.0, self.time_per_single, self.N)
         table_data = [['resolution_BW', self.resolution_BW, 'Hz']]
         for p in self.input_constrained:
             table_data.append([p, getattr(self, p), ''])
@@ -97,22 +103,34 @@ class Signal:
         print("NOW NEED TO APPLY bTau AS APPROPRIATE")
 
     def power_from_v(self):
-        self.Iv2 =  np.trapz(self.signal**2, self.sys.t) / self.sys.time_obs_0
+        self.Iv2 =  np.trapz(self.signal**2, self.sys.t) / self.sys.time_per_single
         
     def power_from_f(self):
-        self.If =  np.trapz(self.S, self.f) * self.sys.time_obs_0 / self.sys.N
+        self.If =  np.trapz(self.S, self.f) * self.sys.time_per_single / self.sys.N
 
 class FM(Signal):
     name = "FM"
-    def __init__(self, sys):
+    def __init__(self, sys, n):
         self.sys = sys
+        self.system_number = n
+        if sys is not None:
+            self.mod = self.sys.fm[n].mod
+            self.freq = self.sys.fm[n].freq
+            self.pwr = self.sys.fm[n].power
         
     def band_limited_uniform(self):
-        mod_f = butter_lowpass_filter(rng.uniform(-1.0, 1.0, self.sys.N), self.sys.fs, self.sys.fm_mod, order=4)
-        mod_f /= max(mod_f[100:-100])
-        omega = 2.0 * np.pi * (self.sys.fm_freq + mod_f) 
-        self.signal = self.sys.fm_power * np.cos(omega * self.sys.t)
-        self.channel_power = 0.0  # Ignore this for now
+        if self.sys is None:
+            self.silent()
+        else:
+            mod_f = butter_lowpass_filter(rng.uniform(-1.0, 1.0, self.sys.N), self.sys.fs, self.mod, order=4)
+            mod_f /= max(mod_f[100:-100])
+            omega = 2.0 * np.pi * (self.freq + mod_f) 
+            self.signal = self.pwr * np.cos(omega * self.sys.t)
+            self.channel_power = 0.0  # Ignore this for now
+
+    def silent(self):
+        self.signal = np.zeros(self.sys.N)
+        self.channel_power = 0.0
 
 class CombinedSignal(Signal):
     name = "CombinedSignal"
@@ -137,7 +155,7 @@ class CombinedSignal(Signal):
         print()
 class BandLimitedWhiteNoise(Signal):
     name = "BandLimitedWhiteNoise"
-    def __init__(self, sys, parmap):
+    def __init__(self, sys, n, parmap):
         """
         Parameters
         ----------
@@ -146,8 +164,12 @@ class BandLimitedWhiteNoise(Signal):
 
         """
         self.sys = sys
+        self.system_number = n
         for p_self, p_sys in parmap.items():
-            setattr(self, p_self, getattr(self.sys, p_sys))
+            if n is None:
+                setattr(self, p_self, getattr(self.sys, p_sys))
+            else:
+                setattr(self, p_self, getattr(self.sys, p_sys)[n])
         self.mu = 0.0
         self.channel_power = kB * self.T * self.sys.resolution_BW
         self.total_power = kB * self.T * self.sys.BW
@@ -167,8 +189,8 @@ class DriftingCW(Signal):
         ----------
         fs : float
             sample rate in Hz
-        time_obs_0 : float
-            time_obs_0 of recording in s
+        time_per_single : float
+            time_per_single of recording in s
         starting_freq : float
             starting frequency in Hz
         drift_rate : float
@@ -185,7 +207,7 @@ class DriftingCW(Signal):
     def cw(self):
         self.W = self.Wm2 * self.sys.Ae
         Vm = np.sqrt(self.W)
-        tstop = self.sys.signal_start_freq + self.sys.time_obs_0 * self.sys.signal_drift_rate
+        tstop = self.sys.signal_start_freq + self.sys.time_per_single * self.sys.signal_drift_rate
         self.freq_drifted = np.linspace(self.sys.signal_start_freq, tstop, self.sys.N)
         self.signal = Vm *  np.sin(2.0 * np.pi * self.freq_drifted * self.sys.t + self.sys.signal_phase)
         self.channel_power = self.W * self.sys.N / 2.0

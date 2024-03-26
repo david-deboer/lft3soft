@@ -3,27 +3,29 @@ import matplotlib.pyplot as plt
 import numpy as np
 from scipy.signal import correlate
 import argparse
+import rf_sources
 
 #https://www.dsprelated.com/showarticle/1004.php  calc power from DFT
 
+
+
 ### INPUTS
 INPUTS = {
-    'N_rcvr': 1,
+    'N_rcvr': 2,
+    'Tsys':  [30.0, 30.0],  # K
+    'fm': [rf_sources.krfi, rf_sources.kwtf],
+    'signal_phase':  [0.0, 0.0],
+    'Ae': [50 * 50.0, 50.0 * 50.0],
     'BW': 3.0e6,  # full bandwidth
+    'Tsky':  100.0,
     'oversample_pc': 1.0,  #percent to oversample from Nyquist
-    'time_obs_0': 0.4,  # s
+    'time_per_single': 0.4,  # s
     'time_integration': 18.0,  # s
-    'Tsys':  30.0,  # K
-    'Tsky':  0.0,
-    'fm_freq': 0.7e6,
-    'fm_mod': 100.0e3,
-    'fm_power': (1000.0) / (4.0 * np.pi * 50000.0**2),  # 1kW at 50km
-    'signal_start_freq': 1.9e6,  # Of signal
-    'signal_phase':  0.0,
+    'time_start': 0.0,  # offset for start time
+    'signal_start_freq': 0.8e6,  # Of signal
     'signal_drift_rate': 0.0,
     'distance': 100.0,  # in LY
     'EIRP': 1.0E12,  # in W
-    'Ae': 50 * 50.0,
     'SNR': 10.0
     }
 
@@ -33,17 +35,19 @@ class Observing:
         self.ant = {}
         self.noise = {}
         self.rx = {}
+        self.rfi = {}
+        self.cross = {}
         self.per_rcvr = argparse.Namespace(chan_noise_v={}, chan_noise_f={}, snr_detected={})
         self.sys = sys
 
     def make_noise(self):
         print("Making sky and system noise.")
-        self.sky = sigs.BandLimitedWhiteNoise(self.sys, {'T': 'Tsky'})
+        self.sky = sigs.BandLimitedWhiteNoise(self.sys, None, {'T': 'Tsky'})
         self.sky.band_limited_white_noise()
         for i in range(self.sys.N_rcvr):
-            self.ant[i] = sigs.BandLimitedWhiteNoise(self.sys, {'T': 'Tsys'})
+            self.ant[i] = sigs.BandLimitedWhiteNoise(self.sys, i, {'T': 'Tsys'})
             self.ant[i].band_limited_white_noise()
-            self.noise[i] = sigs.CombinedSignal(self.sys, self.ant[0], self.sky)
+            self.noise[i] = sigs.CombinedSignal(self.sys, self.ant[i], self.sky)
             self.noise[i].power_spectrum()
             self.noise[i].power_from_v()
             self.noise[i].power_from_f()
@@ -62,40 +66,53 @@ class Observing:
 
     def make_rfi(self):
         print("Making RFI (fm)")
-        self.fm = sigs.FM(self.sys)
-        self.fm.band_limited_uniform()
+        self.rfi[0] = sigs.FM(self.sys)
+        self.rfi[0].band_limited_uniform()
+        self.rfi[1] = sigs.FM(self.sys)
+        self.rfi[1].silent()
 
     def auto_observe(self):
-        print("Making observation.")
-        self.noise[0].integrate()
+        print("Making observation and computing autos.")
+        # self.noise[0].integrate()
         for i in range(self.sys.N_rcvr):
-            self.rx[i] = sigs.CombinedSignal(self.sys, self.sig, self.fm, self.noise[i])
+            self.rx[i] = sigs.CombinedSignal(self.sys, self.sig, self.rfi[i], self.noise[i])
             self.rx[i].power_spectrum()
             self.rx[i].power_from_v()
             self.rx[i].power_from_f()
             self.per_rcvr.snr_detected[i] = self.sig.channel_power / self.noise[i].channel_power
             self.per_rcvr.chan_noise_v[i] = self.per_rcvr.chan_noise_v[i] #update for integration
+        self.f = self.rx[0].f  # pick one
+
+    def cross_observe(self, i=0, j=1):
+        if self.sys.N_rcvr > 1:
+            cind = f"{i}{j}"
+            print(f"Computing cross power {i},{j}.")
+            self.f_cross, self.cross[cind] = sigs.cross_power(self.rx[i].signal, self.rx[j].signal, self.sys.fs, self.sys.N)
+        else:
+            print("Not enough receivers!")
     
-    def info(self):
-        print(f"Noise = {self.noise[0].dB('channel_power')}  dB[W]")
+    def info(self, ant=0):
+        print(f"Noise = {self.noise[ant].dB('channel_power')}  dB[W]")
         print(f"Signal = {self.sig.dB('channel_power')} dB[W]")
         print(f"SNR(threshhold) = {self.sys.SNR}")
-        print(f"SNR(detected) = {self.per_rcvr.snr_detected[0]}")
+        print(f"SNR(detected) = {self.per_rcvr.snr_detected[ant]}")
         print(f"Freq resolution = {self.sys.resolution_BW} Hz")
         print(f"Band = {self.sys.BW} Hz")
         print("Integrating voltage^2 ...")
-        print(f"  self.noise[0] = {sigs.to_dB(self.per_rcvr.chan_noise_v[0])}")
+        print(f"  self.noise[{ant}] = {sigs.to_dB(self.per_rcvr.chan_noise_v[ant])}")
         print(f"  sig = {sigs.to_dB(self.chan_sig_v)}")
-        #print(f"  rx[0] = {self.rx[0].dB('Iv2')}")
+        #print(f"  rx[0] = {self.rx[ant].dB('Iv2')}")
         print("Integrating power spectrum ...")
-        print(f"  self.noise[0] = {sigs.to_dB(self.per_rcvr.chan_noise_f[0])}")
+        print(f"  self.noise[{ant}] = {sigs.to_dB(self.per_rcvr.chan_noise_f[ant])}")
         print(f"  sig = {sigs.to_dB(self.chan_sig_f)}")
-        #print(f"  rx[0] = {self.rx[0].dB('If')}")
+        #print(f"  rx[0] = {self.rx[ant].dB('If')}")
         print("DIFF")
-        print(self.noise[0].dB('If') - self.noise[0].dB('Iv2'))
+        print(self.noise[ant].dB('If') - self.noise[ant].dB('Iv2'))
         print(self.sig.dB('If') - self.sig.dB('Iv2'))
 
     def time_plot(self, plot_span=500):
+        print("Ignoring time plot.")
+        return
         t_plot = self.ant[0].sys.t[:plot_span]
         figt, axt = plt.subplots()
         axt.plot(t_plot, self.noise[0].signal[:plot_span], 'b')
@@ -105,15 +122,21 @@ class Observing:
         axt.plot([t_plot[0], t_plot[-1]], [np.sqrt(self.sig.W / 2.0), np.sqrt(self.sig.W / 2.0)], 'g--')
 
     def freq_plot(self):
+        self.detection = sigs.to_dB(self.noise[0].channel_power * self.sys.SNR)
         figf, axf = plt.subplots()
-        axf.plot(self.rx[0].f, self.rx[0].dB('S'), 'b')
-        axf.plot([self.rx[0].f[0], self.rx[0].f[-1]], [self.noise[0].dB('channel_power') + sigs.to_dB(self.sys.SNR), self.noise[0].dB('channel_power') + sigs.to_dB(self.sys.SNR)])
-        axf.plot([self.rx[0].f[0], self.rx[0].f[-1]], [self.sig.dB('channel_power'), self.sig.dB('channel_power')])
+        for i in range(self.sys.N_rcvr):
+            axf.plot(self.f, self.rx[i].dB('S'))
+        axf.plot([self.f[0], self.f[-1]], [self.detection, self.detection])
+        # axf.plot([self.f[0], self.f[-1]], [self.sig.dB('channel_power'), self.sig.dB('channel_power')])
+        for bline, cspec in self.cross.items():
+            axf.plot(self.f, sigs.to_dB(cspec[:(self.sys.N//2)]), label=bline)
+        if self.sys.N_rcvr > 10:  # ignore for now
+            plt.figure("Cross")
+            plt.plot(self.f_cross, self.cross['01'].real)
+            plt.plot(self.f_cross, self.cross['01'].imag)
         axf.set_xlim(left=0, right=self.sys.BW)
-        axf.set_ylim(bottom=-220)
+        #axf.set_ylim(bottom=-220)
 
-    def cross_observe(self):
-        print("YEP")
 
 sys = sigs.System(**INPUTS)
 obs = Observing(sys)
@@ -121,6 +144,7 @@ obs.make_noise()
 obs.make_cw()
 obs.make_rfi()
 obs.auto_observe()
+obs.cross_observe()
 obs.info()
 obs.time_plot()
 obs.freq_plot()
