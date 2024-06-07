@@ -1,7 +1,11 @@
 import matplotlib.pyplot as plt
 import numpy as np
 
-r = 3.5 / 2.0
+astrobotics = 3.5
+firefly = 103 * 2.54 / 100
+im = 4.0
+
+r = astrobotics / 2.0
 spacing = 0.5
 extra = {'lo': [0.0, 1.5], 'fm': [1.5, 0.0], 'hi': [-1.5, 0.0], 'comm': [0.0, -1.5]}
 

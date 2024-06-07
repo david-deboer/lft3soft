@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from scipy.signal import correlate
 import argparse
-import rf_sources
+import rf_seti
 
 #https://www.dsprelated.com/showarticle/1004.php  calc power from DFT
 
@@ -11,11 +11,8 @@ import rf_sources
 
 ### INPUTS
 INPUTS = {
-    'N_rcvr': 2,
-    'Tsys':  [30.0, 30.0],  # K
-    'fm': [rf_sources.krfi, rf_sources.kwtf],
-    'signal_phase':  [0.0, 0.0],
-    'Ae': [50 * 50.0, 50.0 * 50.0],
+    'N_site': 2,
+    'site': [rf_seti.site1, rf_seti.site2],
     'BW': 3.0e6,  # full bandwidth
     'Tsky':  100.0,
     'oversample_pc': 1.0,  #percent to oversample from Nyquist
@@ -30,42 +27,57 @@ INPUTS = {
     }
 
 
+class SiteResponse:
+    def __init__(self):
+        self.chan_noise_v = None
+        self.chan_noise_f = None
+        self.chan_sig_v = None
+        self.chan_sig_f = None
+        self.snr_detected = None
+
 class Observing:
     def __init__(self, sys):
-        self.ant = {}
-        self.noise = {}
-        self.rx = {}
-        self.rfi = {}
-        self.cross = {}
-        self.per_rcvr = argparse.Namespace(chan_noise_v={}, chan_noise_f={}, snr_detected={})
         self.sys = sys
+        # Per site
+        for i in range(self.sys.N_site):
+            self.sys.site[i].ant = {}
+            self.noise = {}
+            self.rx = {}
+            self.rfi = {}
+            self.sig = {}
+        # Per baseline
+        self.cross = {}
+        self.response = []
+        for i in self.sys.N_site:
+            self.response.append(SiteResponse())
 
     def make_noise(self):
         print("Making sky and system noise.")
         self.sky = sigs.BandLimitedWhiteNoise(self.sys, None, {'T': 'Tsky'})
         self.sky.band_limited_white_noise()
-        for i in range(self.sys.N_rcvr):
+        for i in range(self.sys.N_site):
             self.ant[i] = sigs.BandLimitedWhiteNoise(self.sys, i, {'T': 'Tsys'})
             self.ant[i].band_limited_white_noise()
             self.noise[i] = sigs.CombinedSignal(self.sys, self.ant[i], self.sky)
             self.noise[i].power_spectrum()
             self.noise[i].power_from_v()
             self.noise[i].power_from_f()
-            self.per_rcvr.chan_noise_v[i] = self.noise[i].Iv2 * self.noise[i].sys.resolution_BW
-            self.per_rcvr.chan_noise_f[i] = self.noise[i].If * self.noise[i].sys.resolution_BW
+            self.response[i].chan_noise_v = self.noise[i].Iv2 * self.noise[i].sys.resolution_BW
+            self.response[i].chan_noise_f = self.noise[i].If * self.noise[i].sys.resolution_BW
 
     def make_cw(self):
         print("Making technosignature.")
-        self.sig = sigs.DriftingCW(self.sys)
-        self.sig.cw()
-        self.sig.power_spectrum()
-        self.sig.power_from_v()
-        self.sig.power_from_f()
-        self.chan_sig_v = self.sig.Iv2 * self.sys.N
-        self.chan_sig_f = self.sig.If * self.sys.N
+        for i in range(self.sys.N_site):
+            self.sig[i] = sigs.DriftingCW(self.sys, i)
+            self.sig[i].cw()
+            self.sig[i].power_spectrum()
+            self.sig[i].power_from_v()
+            self.sig[i].power_from_f()
+            self.response[i].chan_sig_v = self.sig[i].Iv2 * self.sys.N
+            self.response[i].chan_sig_f = self.sig[i].If * self.sys.N
 
     def make_rfi(self):
-        print("Making RFI (fm)")
+        print("Making RFI (fm) per site")
         self.rfi[0] = sigs.FM(self.sys)
         self.rfi[0].band_limited_uniform()
         self.rfi[1] = sigs.FM(self.sys)
@@ -74,40 +86,39 @@ class Observing:
     def auto_observe(self):
         print("Making observation and computing autos.")
         # self.noise[0].integrate()
-        for i in range(self.sys.N_rcvr):
-            self.rx[i] = sigs.CombinedSignal(self.sys, self.sig, self.rfi[i], self.noise[i])
+        for i in range(self.sys.N_site):
+            self.rx[i] = sigs.CombinedSignal(self.sys, self.sig[i], self.rfi[i], self.noise[i])
             self.rx[i].power_spectrum()
             self.rx[i].power_from_v()
             self.rx[i].power_from_f()
-            self.per_rcvr.snr_detected[i] = self.sig.channel_power / self.noise[i].channel_power
-            self.per_rcvr.chan_noise_v[i] = self.per_rcvr.chan_noise_v[i] #update for integration
+            self.response[i].snr_detected = self.sig[i].channel_power / self.noise[i].channel_power
         self.f = self.rx[0].f  # pick one
 
     def cross_observe(self, i=0, j=1):
-        if self.sys.N_rcvr > 1:
+        if self.sys.N_site > 1:
             cind = f"{i}{j}"
             print(f"Computing cross power {i},{j}.")
             self.f_cross, self.cross[cind] = sigs.cross_power(self.rx[i].signal, self.rx[j].signal, self.sys.fs, self.sys.N)
         else:
             print("Not enough receivers!")
     
-    def info(self, ant=0):
-        print(f"Noise = {self.noise[ant].dB('channel_power')}  dB[W]")
+    def info(self, site=0):
+        print(f"Noise = {self.noise[site].dB('channel_power')}  dB[W]")
         print(f"Signal = {self.sig.dB('channel_power')} dB[W]")
         print(f"SNR(threshhold) = {self.sys.SNR}")
-        print(f"SNR(detected) = {self.per_rcvr.snr_detected[ant]}")
+        print(f"SNR(detected) = {self.response[site].snr_detected}")
         print(f"Freq resolution = {self.sys.resolution_BW} Hz")
         print(f"Band = {self.sys.BW} Hz")
         print("Integrating voltage^2 ...")
-        print(f"  self.noise[{ant}] = {sigs.to_dB(self.per_rcvr.chan_noise_v[ant])}")
+        print(f"  self.noise[{site}] = {sigs.to_dB(self.response[site].chan_noise_v)}")
         print(f"  sig = {sigs.to_dB(self.chan_sig_v)}")
         #print(f"  rx[0] = {self.rx[ant].dB('Iv2')}")
         print("Integrating power spectrum ...")
-        print(f"  self.noise[{ant}] = {sigs.to_dB(self.per_rcvr.chan_noise_f[ant])}")
+        print(f"  self.noise[{site}] = {sigs.to_dB(self.response[site].chan_noise_f)}")
         print(f"  sig = {sigs.to_dB(self.chan_sig_f)}")
         #print(f"  rx[0] = {self.rx[ant].dB('If')}")
         print("DIFF")
-        print(self.noise[ant].dB('If') - self.noise[ant].dB('Iv2'))
+        print(self.noise[site].dB('If') - self.noise[site].dB('Iv2'))
         print(self.sig.dB('If') - self.sig.dB('Iv2'))
 
     def time_plot(self, plot_span=500):
@@ -124,13 +135,13 @@ class Observing:
     def freq_plot(self):
         self.detection = sigs.to_dB(self.noise[0].channel_power * self.sys.SNR)
         figf, axf = plt.subplots()
-        for i in range(self.sys.N_rcvr):
+        for i in range(self.sys.N_site):
             axf.plot(self.f, self.rx[i].dB('S'))
         axf.plot([self.f[0], self.f[-1]], [self.detection, self.detection])
         # axf.plot([self.f[0], self.f[-1]], [self.sig.dB('channel_power'), self.sig.dB('channel_power')])
         for bline, cspec in self.cross.items():
             axf.plot(self.f, sigs.to_dB(cspec[:(self.sys.N//2)]), label=bline)
-        if self.sys.N_rcvr > 10:  # ignore for now
+        if self.sys.N_site > 10:  # ignore for now
             plt.figure("Cross")
             plt.plot(self.f_cross, self.cross['01'].real)
             plt.plot(self.f_cross, self.cross['01'].imag)
@@ -139,15 +150,15 @@ class Observing:
 
 
 sys = sigs.System(**INPUTS)
-obs = Observing(sys)
-obs.make_noise()
-obs.make_cw()
-obs.make_rfi()
-obs.auto_observe()
-obs.cross_observe()
-obs.info()
-obs.time_plot()
-obs.freq_plot()
+# obs = Observing(sys)
+# obs.make_noise()
+# obs.make_cw()
+# obs.make_rfi()
+# obs.auto_observe()
+# obs.cross_observe()
+# obs.info()
+# obs.time_plot()
+# obs.freq_plot()
 
 
 

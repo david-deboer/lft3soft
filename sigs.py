@@ -114,9 +114,9 @@ class FM(Signal):
         self.sys = sys
         self.system_number = n
         if sys is not None:
-            self.mod = self.sys.fm[n].mod
-            self.freq = self.sys.fm[n].freq
-            self.pwr = self.sys.fm[n].power
+            self.mod = self.sys.site[n].fm.mod
+            self.freq = self.sys.site[n].fm.freq
+            self.pwr = self.sys.site[n].fm.Tx
         
     def band_limited_uniform(self):
         if self.sys is None:
@@ -167,9 +167,9 @@ class BandLimitedWhiteNoise(Signal):
         self.system_number = n
         for p_self, p_sys in parmap.items():
             if n is None:
-                setattr(self, p_self, getattr(self.sys, p_sys))
+                setattr(self, p_self, getattr(self.sys.site, p_sys))
             else:
-                setattr(self, p_self, getattr(self.sys, p_sys)[n])
+                setattr(self, p_self, getattr(self.sys.site, p_sys)[n])
         self.mu = 0.0
         self.channel_power = kB * self.T * self.sys.resolution_BW
         self.total_power = kB * self.T * self.sys.BW
