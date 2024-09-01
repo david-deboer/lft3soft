@@ -3,6 +3,8 @@ import numpy as np
 
 directivity = {'vivaldi': 3.1, 'dipole': 1.6}
 
+RESETSTUFF = True
+
 
 class System:
     def __init__(self, N=50, deck_diameter=3.0, element_low=400.0, array_low=400.0, start=250.0, stop=750.0, step=20.0):
@@ -25,6 +27,11 @@ class System:
             step in MHz
 
         """
+        if RESETSTUFF:
+            print("lunar_sys.py: RESETFREQ")
+            start = 750.0
+            stop = 2250.1
+            step = 50.0
         self.N = N
         self.deck_diameter = deck_diameter
         self.element_low = element_low  # Low frequency size scale (MHz)
@@ -34,6 +41,9 @@ class System:
             self.array_low = array_low  # Critical spacing frequency (MHz)
         if step > 0.0:
             self.idisplay = int((self.element_low - start) / step)
+            if RESETSTUFF:
+                print("lunar_sys.py: RESETIDISPLAY")
+                self.idisplay = int((stop - start) / step)
             self.freqs = np.arange(start, stop, step)
         else:
             self.freqs = np.logspace(np.log10(start), np.log10(stop), int(abs(step)))
@@ -58,6 +68,10 @@ class System:
         plt.ylabel(r'T$_R$ [K]')
 
     def gen_Aeff(self, antenna_type='vivaldi'):
+        if RESETSTUFF:
+            print("lunar_sys.py: RESETAEFF")
+            self.Aeff = 9.0 * (300.0 / self.freqs)**2
+            return
         self.Aeff = self.N * np.power(300.0 / self.freqs, 2.0) * directivity[antenna_type] / (4.0 * np.pi)
         plt.figure('Aeff')
         # plt.plot(self.freqs, self.Aeff)
@@ -84,7 +98,7 @@ class System:
         if self.min_width > self.deck_diameter:
             print(f"Can't have the array {self.array_width} be bigger than the deck {self.deck_diameter}")
 
-    def show_sys(self):
+    def sys_info(self):
         print(f"N = {self.N}")
         print(f"deck = {self.deck_diameter} m")
         print(f"element low design freq = {self.element_low} MHz")

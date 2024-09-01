@@ -5,6 +5,7 @@ import lunar_sys
 import lunar_obs
 import healpy as hp
 
+BOLTZ = 1.38E-23
 
 NSIDE = 512
 plt.style.use('ggplot')
@@ -24,13 +25,13 @@ class Observe:
         self.LB = [1, 50]
         self.FM = [70, 120]
         self.MA = [start, stop]
-        self.HB = [start * 2, start * 6]
+        self.HB = [start * 2, stop * 2]
         self.system = lunar_sys.System(N=N, deck_diameter=deck_diameter, element_low=element_low, array_low=array_low, start=start, stop=stop, step=step)
         self.system.gen_Trcvr()
         self.system.gen_Aeff('vivaldi')
         self.system.gen_FWHM()
         self.system.check()
-        self.system.show_sys()
+        self.system.sys_info()
         self.Tsys = None
         self.galaxy = None
 
@@ -71,8 +72,9 @@ class Observe:
             # hp.visufunc.projplot(lon, lat, 'c*', lonlat=True)
         # Find median galaxy and use
 
-        hp.visufunc.projplot(self.galaxy.coord.lowview.galactic.l.to_value(), self.galaxy.coord.lowview.galactic.b.to_value(), 'k', lonlat=True)
-        hp.visufunc.projplot(self.galaxy.coord.hiview.galactic.l.to_value(), self.galaxy.coord.hiview.galactic.b.to_value(), 'k', lonlat=True)
+        #hp.visufunc.projplot(self.galaxy.coord.lowview.galactic.l.to_value(), self.galaxy.coord.lowview.galactic.b.to_value(), 'k', lonlat=True)
+        #hp.visufunc.projplot(self.galaxy.coord.hiview.galactic.l.to_value(), self.galaxy.coord.hiview.galactic.b.to_value(), 'k', lonlat=True)
+        hp.visufunc.projplot(self.galaxy.coord.midview.galactic.l.to_value(), self.galaxy.coord.midview.galactic.b.to_value(), 'k', lonlat=True)
 
         plt.figure('System')
         # plt.semilogy(self.system.freqs, self.system.Trcvr, linewidth=3, label='Trcvr')
@@ -85,7 +87,7 @@ class Observe:
         #plt.ylabel(r'K/m$^2$')
         plt.ylabel('K')
 
-        plt.figure("Sensitivity")
+        plt.figure("Sensitivity1")
         plt.title(r'$A_e/T_{sys}$')
         for T in self.Tsys:
             plt.plot(self.system.freqs, self.system.Aeff / T)
@@ -93,6 +95,14 @@ class Observe:
         plt.xlabel('Freq [MHz]')
         plt.ylabel(f'$m^2/K$')
         #peak, bw = peak_bandwidth(system.Aeff / T)
+
+        plt.figure("Sensitivity2")
+        plt.title('Source Equivalent Flux Density')
+        for T in self.Tsys:
+            plt.plot(self.system.freqs, 2.0 * BOLTZ / (self.system.Aeff / T) * 1E26)
+        plt.grid()
+        plt.xlabel('Freq [MHz]')
+        plt.ylabel('Jy')
 
     def plot_bands(self):
         if self.Tsys is None:
@@ -109,6 +119,19 @@ class Observe:
         #plt.setp(labelsy, fontsize=14)
         #plt.axis([0, 2100, 0.5, 3.0])
         plt.xlabel('MHz')
+        print("Saving AeTsys")
+        with open('AeTsys.dat', 'w') as fp:
+            for i in range(len(self.system.freqs)):
+                atmin = self.system.Aeff[i] / self.Tsys[self.imax][i]
+                atmax = self.system.Aeff[i] / self.Tsys[self.imin][i]
+                print(f"{self.system.freqs[i]},{atmin},{atmax}", file=fp)
+        print("Saving SEFD")
+        kbsc = 2.0 * BOLTZ * 1E26
+        with open('sefd.dat', 'w') as fp:
+            for i in range(len(self.system.freqs)):
+                sefdmin = kbsc / (self.system.Aeff[i] / self.Tsys[self.imax][i])
+                sefdmax = kbsc / (self.system.Aeff[i] / self.Tsys[self.imin][i])
+                print(f"{self.system.freqs[i]},{sefdmin},{sefdmax}", file=fp)
 
     def peak_bandwidth(self, spectra):
         """

@@ -39,45 +39,59 @@ class Galaxy:
         self.locations = [imin, imax] + list(range(0, self.map_cube.shape[1], step))
 
     def view(self, view_fullres=True, logged=True):
-        plt.figure('Pointings')
+        #plt.figure('Pointings')
         if view_fullres:
+            print("FULL")
             self.gsm.view(self.idisplay, logged=True)
         else:
             if logged:
+                print("LOGGED")
                 hp.visufunc.mollview(np.log10(self.map_cube[self.idisplay]))
             else:
+                print("ELSE")
                 hp.visufunc.mollview(self.map_cube[self.idisplay])
 
 class Pointing:
-    def __init__(self, observer='Apollo-11 LRRR @ 301', target='399', flip=True, view=30.0,
-                 start='2027-07-01T00:00', stop='2027-07-30T23:59', step='240m'):
-        #observer = 'g: 180.0, -5.0, 0 @ 301'
-        self.target = target
-        self.epoch = {'start': start, 'stop': stop, 'step': step}
-        self.observer = observer
-        apollo_class = Horizons(id=target, location=observer, epochs=self.epoch)
-        apollo = apollo_class.ephemerides()
-        dt = apollo['datetime_jd'] - apollo['datetime_jd'][0]
+    def __init__(self, view=30.0, obs_lon=182, obs_lat=-23.0,
+                 start='2028-07-01T00:00', stop='2028-12-31T23:59', step='1d'):
 
-        if flip:
-            RA = apollo['RA'] + 180.0
-            i360 = np.where(RA >= 360)
-            if len(i360):
-                RA[i360] = RA[i360] - 360
-            DEC = -1.0 * apollo['DEC']
-        else:
-            RA = apollo['RA']
-            DEC = apollo['DEC']
-        plt.plot(dt, RA / 15.0, '.')
-        plt.plot(dt, DEC, '.')
-        plt.figure()
-        plt.plot(RA / 15.0, DEC, '.')
+        mobj = Horizons(id=301, location=500, epochs={'start': start, 'stop': stop, 'step': step})
+        meph = mobj.ephemerides()
+        w = np.where(meph['PDObsLon'] > 180.0)
+        meph['PDObsLon'][w] = meph['PDObsLon'][w] - 360.0
+        RA = meph['RA'] + meph['PDObsLon'] + (obs_lon - 180.0)
+        DEC = meph['DEC'] + meph['PDObsLat'] + obs_lat
+
+        plt.plot(meph['datetime_jd'], RA / 15.0, '.')
+        plt.plot(meph['datetime_jd'], DEC, '.')
+        this_fig = plt.figure('radec mw')
+        ax = this_fig.add_subplot(111)
+        ax.plot(RA / 15.0, DEC, '.')
+        gp_l = np.arange(0.0, 359.9, 0.1) * u.deg
+        gp_b = np.ones(len(gp_l)) * 0.0 * u.deg
+        gal_plane = SkyCoord(frame='galactic', l=gp_l, b=gp_b)
+        radec = gal_plane.transform_to('icrs')
+        ax.plot(radec.ra.to_value() / 15.0, radec.dec.to_value(), '.', label='GalPlane')
+        gal_cen = SkyCoord(frame='galactic', l=0.0 * u.deg, b=0.0 * u.deg)
+        radecc = gal_cen.transform_to('icrs')
+        ax.plot(radecc.ra.to_value() / 15.0, radecc.dec.to_value(), 'o', markersize=8)
         plt.xlabel('RA [hr]')
         plt.ylabel('Dec [deg]')
+
+        next_fig = plt.figure('galactic')
+        next_ax = next_fig.add_subplot(111, projection='mollweide')
+        pts = SkyCoord(frame='icrs', ra=RA * u.deg, dec = DEC * u.deg)
+        lb = pts.transform_to('galactic')
+        cl = lb.l.to_value()
+        w = np.where(cl > 180.0)
+        cl[w] = cl[w] - 360.0
+        next_ax.plot(-1.0 * cl, lb.b.to_value(), 'o')
 
         self.lowview = SkyCoord(ra=np.array(RA)*u.degree, dec=(np.array(DEC) - view/2.0)*u.degree, frame='icrs')
         self.midview = SkyCoord(ra=np.array(RA)*u.degree, dec=np.array(DEC)*u.degree, frame='icrs')
         self.hiview = SkyCoord(ra=np.array(RA)*u.degree, dec=(np.array(DEC) + view/2.0)*u.degree, frame='icrs')
+
+        next_ax.plot(self.midview.galactic.l.to_value(), self.midview.galactic.b.to_value(), 'o')
 
 #observer = '500@301'
 #luna_class = Horizons(id=target, location=observer, epochs=epoch)
