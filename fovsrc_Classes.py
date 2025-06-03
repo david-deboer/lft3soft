@@ -8,8 +8,12 @@ import matplotlib.pyplot as plt
 from pygdsm import GlobalSkyModel
 from copy import copy
 
+def gaussian(x,x0,sigma):
+  return np.exp(-np.power((x - x0)/sigma, 2.)/2.)
+
 
 DATA_DIR = 'data'
+KERNEL = gaussian(np.arange(-20, 20), 0.0, 5.0)
 
 
 class Position:
@@ -51,7 +55,8 @@ def overpole(rd, resample_type=None):
     if resample_type is not None:
         RES = 1.0  # 1deg
         RAresample = np.arange(0, 360.0, RES)
-        kernel = np.array([0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 0.9, 0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1])
+        #kernel = np.array([0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 0.9, 0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1])
+        kernel = KERNEL
         kernel = kernel / np.sum(kernel)
     lo_flip = np.where(rd.DEC < -90.0)
     if len(lo_flip[0]):
@@ -195,7 +200,7 @@ class Sources:
             if method.endswith('write'):
                 print("Writing positions")
                 for src in sources:
-                    with open("{src}.dat", 'w') as fp:
+                    with open(f"{src}.dat", 'w') as fp:
                         sv = getattr(self, src)
                         print(f"#jd,ra,dec  --  {start_time}-{end_time} step {step}", file=fp)
                         for _t, _r, _d in zip(sv.vis_times, sv.RA, sv.DEC):

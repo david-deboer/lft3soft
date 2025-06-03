@@ -1,7 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from copy import copy
-import lunar_sys
+import lft3_sys
 import lunar_obs
 import healpy as hp
 
@@ -21,17 +21,20 @@ color_palette = [
 
 
 class Observe:
-    def __init__(self, N=50, deck_diameter=3.0, element_low=400.0, array_low=None, start=250.0, stop=750, step=10):
-        self.LB = [1, 50]
-        self.FM = [70, 120]
-        self.MA = [start, stop]
-        self.HB = [start * 2, stop * 2]
-        self.system = lunar_sys.System(N=N, deck_diameter=deck_diameter, element_low=element_low, array_low=array_low, start=start, stop=stop, step=step)
-        self.system.gen_Trcvr()
-        self.system.gen_Aeff('vivaldi')
-        self.system.gen_FWHM()
-        self.system.check()
-        self.system.sys_info()
+    def __init__(self, band='UL'):
+        if band == 'HF':
+            self.system = lft3_sys.HF()
+        elif band == 'VL':
+            self.system = lft3_sys.VHF_LO()
+        elif band == 'VH':
+            self.system = lft3_sys.VHF_HI()
+        elif band == 'UL':
+            self.system = lft3_sys.UHF_LO()
+        elif band == 'UH':
+            self.system = lft3_sys.UHF_HI()
+        else:
+            raise ValueError(f"Band {band} not recognized")
+        self.system.get_fwhm()
         self.Tsys = None
         self.galaxy = None
 
@@ -42,7 +45,7 @@ class Observe:
         if pointing == 'moon_ptg':
             self.galaxy.gen_pointings()
         else:
-            self.galaxy.gen_locs(112000)  # randomish
+            self.galaxy.gen_locs(int(pointing))  # randomish
         self.galaxy.view()
 
     def get_sky_Tsys(self, pointing='moon_ptg'):
@@ -109,9 +112,8 @@ class Observe:
             self.get_sky_Tsys()
         self.get_minmax()
         plt.figure('Bands')
-        for i, band in enumerate([self.LB, self.FM, self.HB]):
-            hgt = 0.04
-            plt.barh(0.0, band[1]-band[0], left=band[0], height=hgt, align='center', color=color_palette[i], alpha=0.75)
+        hgt = 0.04
+        plt.barh(0.0, self.system.freqs[-1]-self.system.freqs[0], left=self.system.freqs[0], height=hgt, align='center', color=color_palette[0], alpha=0.75)
         ylo = 4.0 * self.system.Aeff / self.Tsys[self.imin]
         yhi = 4.0 * self.system.Aeff / self.Tsys[self.imax]
         plt.fill_between(self.system.freqs, ylo, yhi, color=color_palette[-1])
