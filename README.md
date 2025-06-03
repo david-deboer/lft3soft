@@ -1,20 +1,12 @@
 This repo contains various definitions and plots for the LFT3 system.
 
-`lft3_sys.py` contains the system description and some computed estimated parameters.
+To make WP \label{fig:freqbands}, you can just type (or import) `plot_sens.py`.  It uses pre-computed data generated from:
 
-`observer.py` contains scripts to read in the lft3_sys and `lunar_obs.py`, which has the pointing direction and galaxy etc and produces various figures.
+> import observer
+> lft3 = observer.Observe(band='UL')  # one of HF, VL, VH, UL, UH
+> lft3.plot_band()
 
-To initiate:
+It assumes that you have the pygdsm installed.
+Note that using `lft3.run() instead of lft3.plot_band() does sort of the same thing, but gives some different plots and doesn't write the files.
 
-```
-import observer
-lft3 = observer.Observe(band='UL')
-```
-where band is in `[HF, VL, VH, UL, UH]`.
-
-To generate the sensitivity information use:
-`lft3.plot_bands()`
-
-lft3.run()
-
-To make the frequency band/sensitivity plot using the data saved from the `plot_bands` module, use `plot_sens.py`
+I'll remind myself how to make WP \label{fig:fieldofview} and add that below shortly.

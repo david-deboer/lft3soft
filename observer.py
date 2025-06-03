@@ -107,11 +107,11 @@ class Observe:
         plt.xlabel('Freq [MHz]')
         plt.ylabel('Jy')
 
-    def plot_bands(self):
+    def plot_band(self):
         if self.Tsys is None:
             self.get_sky_Tsys()
         self.get_minmax()
-        plt.figure('Bands')
+        plt.figure('Band')
         hgt = 0.04
         plt.barh(0.0, self.system.freqs[-1]-self.system.freqs[0], left=self.system.freqs[0], height=hgt, align='center', color=color_palette[0], alpha=0.75)
         ylo = 4.0 * self.system.Aeff / self.Tsys[self.imin]

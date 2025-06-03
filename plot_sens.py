@@ -1,3 +1,5 @@
+#! /usr/bin/env python
+#
 import matplotlib.pyplot as plt
 import numpy as np
 
@@ -59,3 +61,6 @@ else:
 ax[1].set_xlabel('Freq [MHz]')
 ax[1].set_ylabel('SEFD [Jy]')
 ax[1].grid()
+
+plt.show()
+plt.savefig('freqbands.png', dpi=300)
