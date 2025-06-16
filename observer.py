@@ -34,12 +34,14 @@ class Observe:
             self.system = lft3_sys.UHF_HI()
         else:
             raise ValueError(f"Band {band} not recognized")
+        self.below_model = np.where(self.system.freqs <= 10.0)
+        self.in_model = np.where(self.system.freqs > 10.0)
         self.system.get_fwhm()
         self.Tsys = None
         self.galaxy = None
 
     def get_galaxy(self, pointing='moon_ptg'):
-        self.galaxy = lunar_obs.Galaxy(freqs=self.system.freqs, fwhm=self.system.fwhm, idisplay=self.system.idisplay)
+        self.galaxy = lunar_obs.Galaxy(freqs=self.system.freqs[self.in_model], fwhm=self.system.fwhm[self.in_model], idisplay=self.system.idisplay)
         self.galaxy.pointing_type = pointing
         self.galaxy.gen_map_cube()
         if pointing == 'moon_ptg':
@@ -48,19 +50,29 @@ class Observe:
             self.galaxy.gen_locs(int(pointing))  # randomish
         self.galaxy.view()
 
+    def get_power_law(self, T0, f0, f, beta=-2.7):
+        """
+        Returns a power law spectrum with the given beta.
+        """
+        return T0 * np.power(f / f0, beta)
+
     def get_sky_Tsys(self, pointing='moon_ptg'):
         if self.galaxy is None:
             self.get_galaxy(pointing=pointing)
         self.Gal = []
         self.Tsys = []
         for i in range(len(self.galaxy.locations)):
-            self.Gal.append(self.galaxy.map_cube[:, self.galaxy.locations[i]])
-            self.Tsys.append(self.galaxy.map_cube[:, self.galaxy.locations[i]] + self.system.Trcvr)
+            this_spectra_in_model = self.galaxy.map_cube[:, self.galaxy.locations[i]]
+            pre = self.get_power_law(this_spectra_in_model[0], self.system.freqs[len(self.below_model[0])], self.system.freqs[self.below_model], beta=-2.7)
+            this_spectra = np.concatenate((pre, this_spectra_in_model))
+            self.Gal.append(this_spectra)
+            self.Tsys.append(this_spectra + self.system.Trcvr)
 
     def get_minmax(self):
         vmin, vmax = 1E6, 0
+        i2chk = len(self.below_model[0])
         for i, T in enumerate(self.Tsys):
-            v = self.system.Aeff[0] / T[0]
+            v = self.system.Aeff[i2chk] / T[i2chk]
             if v > vmax:
                 self.imax = copy(i)
                 vmax = copy(v)
@@ -127,6 +139,11 @@ class Observe:
                 atmin = self.system.Aeff[i] / self.Tsys[self.imax][i]
                 atmax = self.system.Aeff[i] / self.Tsys[self.imin][i]
                 print(f"{self.system.freqs[i]},{atmin},{atmax}", file=fp)
+        if len(self.below_model):
+            f0 = self.system.freqs[0]
+            Tb0min = self.Gal[self.imin][0]
+            Tb0max = self.Gal[self.imax][0]
+
         print("Saving SEFD")
         kbsc = 2.0 * BOLTZ * 1E26
         with open('sefd.dat', 'w') as fp:

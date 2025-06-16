@@ -14,16 +14,17 @@ class Base:
             self.beam_1D(f=f)
             a = np.where(self.beam > 0.5)
             self.fwhm.append((self.theta[a[0][-1]] - self.theta[a[0][0]]) * np.pi / 180.0)
+        self.fwhm = np.array(self.fwhm)
 
 
 class HF(Base):
     def __init__(self):
         self.name = 'HF'
-        self.start = 11.0  # GSM only goes to 10.0 MHz
+        self.start = 1.0
         self.stop = 50.0
         self.N = 1
         self.directivity = 1.6
-        self.freqs = np.arange(self.start, self.stop, 1.0)
+        self.freqs = np.arange(self.start, self.stop+0.1, 1.0)
         self.idisplay = len(self.freqs) // 2  # Which frequency index to display
         self.TR()
         self.AE()
@@ -79,7 +80,7 @@ class VHF_LO(Base):
         self.stop = 110.0
         self.N = 1
         self.directivity = 1.6
-        self.freqs = np.arange(self.start, self.stop, 1.0)
+        self.freqs = np.arange(self.start, self.stop+0.1, 1.0)
         self.idisplay = len(self.freqs) // 2  # Which frequency index to display
         self.TR()
         self.AE()
@@ -120,7 +121,7 @@ class VHF_HI(Base):
         self.stop = 250.0
         self.N = 1
         self.directivity = 1.6
-        self.freqs = np.arange(self.start, self.stop, 1.0)
+        self.freqs = np.arange(self.start, self.stop+0.1, 1.0)
         self.idisplay = len(self.freqs) // 2  # Which frequency index to display
         self.TR()
         self.AE()
@@ -162,7 +163,7 @@ class UHF_LO(Base):
         self.N = 48
         self.D = 3.5
         self.directivity = 3.1
-        self.freqs = np.arange(self.start, self.stop, 2.0)
+        self.freqs = np.arange(self.start, self.stop+0.1, 2.0)
         self.idisplay = len(self.freqs) // 2  # Which frequency index to display
         self.TR()
         self.AE()
@@ -205,7 +206,7 @@ class UHF_HI(Base):
         self.stop = 2700.0
         self.N = 8
         self.directivity = 3.1
-        self.freqs = np.arange(self.start, self.stop, 10.0)
+        self.freqs = np.arange(self.start, self.stop+0.1, 10.0)
         self.idisplay = len(self.freqs) // 2  # Which frequency index to display
         self.TR()
         self.AE()
