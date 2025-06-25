@@ -14,11 +14,44 @@ class Base:
             self.beam_1D(f=f)
             a = np.where(self.beam > 0.5)
             self.fwhm.append((self.theta[a[0][-1]] - self.theta[a[0][0]]) * np.pi / 180.0)
+        self.obs_fwhm = []
+        for idx in self.nearest_indices:
+            self.obs_fwhm.append(self.fwhm[idx])
         self.fwhm = np.array(self.fwhm)
+
+    def proc_obs_freqs(self, freqs):
+        """
+        For each value in arr1, find the index of the closest value in arr2.
+
+        Parameters:
+        arr1 (array-like): Array of values to find nearest neighbors for.
+        arr2 (array-like): Array of values to search in.
+
+        Returns:
+        list: Indices of the closest values in arr2 for each value in arr1.
+        """
+        if freqs is None:
+            self.obs_freqs = []
+            self.nearest_indices = []
+            return
+        if np.isscalar(freqs):
+            obs_freqs = np.array([freqs])
+        else:
+            obs_freqs = np.asarray(freqs)
+        ind = np.where((obs_freqs >= self.start) & (obs_freqs <= self.stop))
+        self.obs_freqs = obs_freqs[ind]
+
+        self.nearest_indices = []
+        for f in self.obs_freqs:
+            # Compute absolute differences between val and all elements in arr2
+            differences = np.abs(self.freqs - f)
+            # Get index of the minimum difference
+            idx = np.argmin(differences)
+            self.nearest_indices.append(idx)
 
 
 class HF(Base):
-    def __init__(self):
+    def __init__(self, obs_freqs=None):
         self.name = 'HF'
         self.start = 1.0
         self.stop = 50.0
@@ -28,6 +61,7 @@ class HF(Base):
         self.idisplay = len(self.freqs) // 2  # Which frequency index to display
         self.TR()
         self.AE()
+        self.proc_obs_freqs(obs_freqs)
 
     def beam_1D(self, f=10.0, plot=False):
         self.theta = np.arange(0, 180, 1.0) + 1E-6
@@ -74,7 +108,7 @@ class HF(Base):
             
 
 class VHF_LO(Base):
-    def __init__(self):
+    def __init__(self, obs_freqs=None):
         self.name = 'VHF-LO'
         self.start = 60.0
         self.stop = 110.0
@@ -84,6 +118,7 @@ class VHF_LO(Base):
         self.idisplay = len(self.freqs) // 2  # Which frequency index to display
         self.TR()
         self.AE()
+        self.proc_obs_freqs(obs_freqs)
 
     def beam_1D(self, f=100.0, plot=False):
         self.theta = np.arange(0, 180, 1.0) + 1E-6
@@ -115,7 +150,7 @@ class VHF_LO(Base):
 
 
 class VHF_HI(Base):
-    def __init__(self):
+    def __init__(self, obs_freqs=None):
         self.name = 'VHF-HI'
         self.start = 150.0
         self.stop = 250.0
@@ -125,6 +160,7 @@ class VHF_HI(Base):
         self.idisplay = len(self.freqs) // 2  # Which frequency index to display
         self.TR()
         self.AE()
+        self.proc_obs_freqs(obs_freqs)
 
     def beam_1D(self, f=200.0, plot=False):
         self.theta = np.arange(0, 180, 1.0) + 1E-6
@@ -156,7 +192,7 @@ class VHF_HI(Base):
 
 
 class UHF_LO(Base):
-    def __init__(self):
+    def __init__(self, obs_freqs=None):
         self.name = 'UHF-LO'
         self.start = 300.0
         self.stop = 900.0
@@ -167,6 +203,7 @@ class UHF_LO(Base):
         self.idisplay = len(self.freqs) // 2  # Which frequency index to display
         self.TR()
         self.AE()
+        self.proc_obs_freqs(obs_freqs)
 
     def beam_1D(self, f=600.0, plot=False):
         self.theta = np.arange(0, 180, 1.0) + 1E-6
@@ -200,7 +237,7 @@ class UHF_LO(Base):
 
 
 class UHF_HI(Base):
-    def __init__(self):
+    def __init__(self, obs_freqs=None):
         self.name = 'UHF-HI'
         self.start = 900.0
         self.stop = 2700.0
@@ -210,6 +247,7 @@ class UHF_HI(Base):
         self.idisplay = len(self.freqs) // 2  # Which frequency index to display
         self.TR()
         self.AE()
+        self.proc_obs_freqs(obs_freqs)
 
     def beam_1D(self, f=1800.0, plot=False):
         self.theta = np.arange(0, 180, 1.0) + 1E-6
@@ -241,13 +279,31 @@ class UHF_HI(Base):
 
 
 class System:
-    def __init__(self):
-        self.HF = HF()
-        self.VHF_LO = VHF_LO()
-        self.VHF_HI = VHF_HI()
-        self.UHF_LO = UHF_LO()
-        self.UHF_HI = UHF_HI()
-
+    def __init__(self, obs_freqs=None):
+        self.obs_freqs = obs_freqs
+        self.obs_fwhm = []
+        self.HF = HF(obs_freqs=obs_freqs)
+        self.HF.get_fwhm()
+        for fw in self.HF.obs_fwhm:
+            self.obs_fwhm.append(fw)
+        self.VHF_LO = VHF_LO(obs_freqs=obs_freqs)
+        self.VHF_LO.get_fwhm()
+        for fw in self.VHF_LO.obs_fwhm:
+            self.obs_fwhm.append(fw)
+        self.VHF_HI = VHF_HI(obs_freqs=obs_freqs)
+        self.VHF_HI.get_fwhm()
+        for fw in self.VHF_HI.obs_fwhm:
+            self.obs_fwhm.append(fw)
+        self.UHF_LO = UHF_LO(obs_freqs=obs_freqs)
+        self.UHF_LO.get_fwhm()
+        for fw in self.UHF_LO.obs_fwhm:
+            self.obs_fwhm.append(fw)
+        self.UHF_HI = UHF_HI(obs_freqs=obs_freqs)
+        self.UHF_HI.get_fwhm()
+        for fw in self.UHF_HI.obs_fwhm:
+            self.obs_fwhm.append(fw)
+        self.obs_fwhm = np.array(self.obs_fwhm)
+        
     def plot_freq_plan(self, ptype='T', xscale='linear', yscale='linear'):
         fig, ax = plt.subplots()
         self.HF.plot(ptype=ptype, ax=ax, xscale=xscale, yscale=yscale)

@@ -73,3 +73,67 @@ def get_source_visibility(start_at=START_AT, stop_at=STOP_AT, step=STEP, method=
 def galaxy(start_at=START_AT, stop_at=STOP_AT, step=STEP, sources=['sun', 'jupiter', 'mars', 'alphacen', 'stars'], method='read'):
     obs = fovsrc_Classes.Observe()
     obs.run(start_at, stop_at, step, sources=sources, method=method)
+
+
+from astropy.coordinates import SkyCoord
+import astropy.units as u
+
+def angular_separation(ra1_deg, dec1_deg, ra2_deg, dec2_deg):
+    """
+    Compute the angular separation between two celestial coordinates.
+
+    Parameters:
+    - ra1_deg, dec1_deg: Right Ascension and Declination of the first object (in degrees)
+    - ra2_deg, dec2_deg: Right Ascension and Declination of the second object (in degrees)
+
+    Returns:
+    - Angular separation in degrees.
+    """
+    coord1 = SkyCoord(ra=ra1_deg * u.deg, dec=dec1_deg * u.deg, frame='icrs')
+    coord2 = SkyCoord(ra=ra2_deg * u.deg, dec=dec2_deg * u.deg, frame='icrs')
+    
+    separation = coord1.separation(coord2)
+    return separation.degree
+
+START_AT = "2028-12-01T00:00:00"
+STOP_AT = "2028-12-31T23:59:59"
+STEP = '1m'
+SIDEREAL = 15.041 / 3600.0 
+def sky_track(start_at=START_AT, stop_at=STOP_AT, step=STEP):
+    filename = f"sky_track_{START_AT.split('-')[1]}.dat"
+    ptg = fovsrc_Classes.Pointing(fovsrc_Classes.LFT3.lon, fovsrc_Classes.LFT3.lat, start_at, stop_at, step)
+    rel_time = (ptg.times - ptg.times[0]) * 3600.0 * 24.0
+    rate = [0.0]
+    frac = [0.0]
+    for i in range(len(ptg.zen.RA)):
+        try:
+            dist = angular_separation(ptg.zen.RA[i+1], ptg.zen.DEC[i+1], ptg.zen.RA[i], ptg.zen.DEC[i])
+            this_rate = dist / (rel_time[i+1] - rel_time[i])  # in degrees per second
+            rate.append(this_rate)
+            this_frac = SIDEREAL / this_rate if this_rate != 0 else 0
+            frac.append(this_frac)
+        except Exception as e:
+            continue
+    rate[0] = rate[1]  # Set the first point to the first distance
+    frac[0] = frac[1]  # Set the first point to the first fraction
+    with open(filename, 'w') as fp:
+        for t, r, f in zip(rel_time, rate, frac):
+            print(f"{t},{r},{f}", file=fp)
+    print(f"Sky track data written to {filename}")
+
+
+    plt.figure('Sky Track')
+    plt.plot(rel_time, rate, '.')
+    plt.xlabel('Relative Time (seconds)')
+    plt.ylabel('Deg/sec')
+    plt.title(f'Sky Track from {start_at} to {stop_at}')
+
+    plt.plot([0, rel_time[-1]], [SIDEREAL, SIDEREAL], 'r--', label='Sidereal Rate')
+    plt.grid()
+
+    plt.figure('Sky Track Fraction')
+    plt.plot(rel_time, frac, '.')
+    plt.xlabel('Relative Time (seconds)')
+    plt.ylabel('1 / Fraction of Sidereal Rate')
+    plt.title(f'Sky Track Fraction from {start_at} to {stop_at}')
+    return ptg
