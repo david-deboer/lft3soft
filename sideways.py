@@ -10,6 +10,8 @@ AU = 1.496e+11
 
 Rearth = 6378.
 Rmoon = 1737.
+Rszm = 100000.0
+Rgeo = 42164.0
 
 start_time = '2024-01-01T0:00:00'
 stop_time = '2024-12-31T23:59:59'
@@ -34,6 +36,10 @@ plt.figure('system')
 # Draw the earth
 xe, ye = draw_circle(Rearth, 0.0, 0.0)
 plt.plot(xe, ye)
+xo, yo = draw_circle(Rszm, 0.0, 0.0)
+plt.plot(xo, yo, label='SZM')
+xg, yg = draw_circle(Rgeo, 0.0, 0.0)
+plt.plot(xg, yg, label='GEO')
 # Draw the moon per step
 for i, dist in enumerate(meph['delta']):
     D = dist * AU / 1000.0
