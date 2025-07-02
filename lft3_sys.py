@@ -1,3 +1,4 @@
+from xml.etree.ElementTree import PI
 import matplotlib.pyplot as plt
 import numpy as np
 
@@ -8,12 +9,16 @@ class Base:
         for f in np.linspace(self.start, self.stop, 50):
             self.beam_1D(f=f, plot=True)
 
-    def get_fwhm(self):
+    def get_fwhm(self, unit='deg'):
+        self.fwhm_unit = unit
         self.fwhm = []
         for f in self.freqs:
             self.beam_1D(f=f)
             a = np.where(self.beam > 0.5)
-            self.fwhm.append((self.theta[a[0][-1]] - self.theta[a[0][0]]) * np.pi / 180.0)
+            if self.fwhm_unit == 'deg':
+                self.fwhm.append((self.theta[a[0][-1]] - self.theta[a[0][0]]))
+            elif self.fwhm_unit == 'rad':
+                self.fwhm.append((self.theta[a[0][-1]] - self.theta[a[0][0]]) * np.pi / 180.0)
         self.obs_fwhm = []
         for idx in self.nearest_indices:
             self.obs_fwhm.append(self.fwhm[idx])
@@ -242,6 +247,7 @@ class UHF_HI(Base):
         self.start = 900.0
         self.stop = 2700.0
         self.N = 8
+        self.D = 0.5
         self.directivity = 3.1
         self.freqs = np.arange(self.start, self.stop+0.1, 10.0)
         self.idisplay = len(self.freqs) // 2  # Which frequency index to display
@@ -251,10 +257,15 @@ class UHF_HI(Base):
 
     def beam_1D(self, f=1800.0, plot=False):
         self.theta = np.arange(0, 180, 1.0) + 1E-6
-        th = self.theta * np.pi / 180.0
-        self.beam = (np.cos((np.pi/ 2.0) * np.cos(th)) / np.sin(th)) ** 2.0
+        th = (self.theta - 90.0) * np.pi / 180.0
+        from scipy.special import j1
+        x = (2.0 * np.pi / (900.0 / f)) * (self.D / 2.0) * np.sin(th)
+        self.beam = (2.0 * j1(x) / x) ** 2
         if plot:
+            oth = th + np.pi / 2.0
+            old_beam = (np.cos((np.pi/ 2.0) * np.cos(oth)) / np.sin(oth)) ** 2.0
             plt.plot(self.theta, self.beam)
+            plt.plot(self.theta, old_beam, '--', label='Old UHF-HI')
     
     def TR(self):
         self.Trcvr = 35.0 * np.ones(len(self.freqs))
