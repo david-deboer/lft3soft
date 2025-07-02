@@ -9,7 +9,7 @@ class Base:
         for f in np.linspace(self.start, self.stop, 50):
             self.beam_1D(f=f, plot=True)
 
-    def get_fwhm(self, unit='deg'):
+    def get_fwhm(self, unit='rad'):
         self.fwhm_unit = unit
         self.fwhm = []
         for f in self.freqs:
